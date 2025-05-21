@@ -13,9 +13,11 @@ import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 @Entity
 @Table(name = "chat_message",
@@ -24,7 +26,8 @@ import java.time.LocalDateTime;
                 @Index(name = "idx_sender", columnList = "sender"),
                 @Index(name = "idx_sent_at", columnList = "sent_at")
         })
-@Data
+@Getter
+@Setter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
@@ -45,8 +48,9 @@ public class ChatMessageEntity {
     private String content;
 
     @Column(name = "sent_at")
-    private LocalDateTime sentAt;
+    private Instant sentAt;
 
     @Column(name = "read_status", nullable = false)
     private Boolean readStatus = false;
+
 }

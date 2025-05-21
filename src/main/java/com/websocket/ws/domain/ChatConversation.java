@@ -4,7 +4,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 @Data
 @Builder
 @NoArgsConstructor
@@ -14,8 +14,9 @@ public class ChatConversation {
     private String user1;
     private String user2;
     private String otherUserName;
-    private LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
+    private Instant createdAt;
+    private Instant updatedAt;
     private Long unreadCount;
     private ChatMessage lastMessage;
+    private Instant lastActivity;
 }

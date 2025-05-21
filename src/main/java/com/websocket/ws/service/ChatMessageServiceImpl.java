@@ -6,6 +6,7 @@ import com.websocket.ws.entities.ChatMessageEntity;
 import com.websocket.ws.repository.ChatConversationRepository;
 import com.websocket.ws.repository.ChatMessageRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -15,12 +16,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ChatMessageServiceImpl implements ChatMessageService {
 
     private final ChatMessageRepository messageRepository;
@@ -35,6 +37,8 @@ public class ChatMessageServiceImpl implements ChatMessageService {
     @Override
     @Transactional
     public ChatMessage sendMessage(ChatMessage messageDto) {
+        log.info("Sending message: {}", messageDto);
+        
         // Get the conversation
         ChatConversationEntity conversation = conversationRepository.findById(messageDto.getConversationId())
                 .orElseThrow(() -> new RuntimeException("Conversation not found with id: " + messageDto.getConversationId()));
@@ -44,11 +48,13 @@ public class ChatMessageServiceImpl implements ChatMessageService {
                 .conversation(conversation)
                 .sender(messageDto.getSender())
                 .content(messageDto.getContent())
-                .sentAt(LocalDateTime.now())
+                .sentAt(Instant.now())
                 .readStatus(false)
                 .build();
 
+        log.info("Saving message entity: {}", message);
         ChatMessageEntity savedMessage = messageRepository.save(message);
+        log.info("Message saved with id: {}", savedMessage.getId());
 
         // Update the conversation's last activity timestamp
         conversationService.updateConversationLastActivity(conversation.getId());
@@ -67,6 +73,7 @@ public class ChatMessageServiceImpl implements ChatMessageService {
         // Invalidate cache
         invalidateMessageCache(conversation.getId());
 
+        log.info("Message processed successfully: {}", savedMessageDto);
         return savedMessageDto;
     }
 
@@ -96,9 +103,8 @@ public class ChatMessageServiceImpl implements ChatMessageService {
 
     @Override
     @Transactional(readOnly = true)
-    public  Page<ChatMessage> getMessageHistory(Long conversationId, Pageable pageable) {
+    public Page<ChatMessage> getMessageHistory(Long conversationId, Pageable pageable) {
         Page<ChatMessageEntity> messagePage = messageRepository.findByConversationIdOrderBySentAtDesc(conversationId, pageable);
-
         return messagePage.map(this::convertToDto);
     }
 
@@ -112,13 +118,12 @@ public class ChatMessageServiceImpl implements ChatMessageService {
     @Transactional
     public void markMessagesAsRead(Long conversationId, String userId) {
         messageRepository.markMessagesAsRead(conversationId, userId);
-
-        // Invalidate cache
         invalidateMessageCache(conversationId);
     }
 
     @Async("messageThreadPoolTaskExecutor")
     protected void publishMessage(ChatMessage message) {
+        log.info("Publishing message to Redis: {}", message);
         messageRedisTemplate.convertAndSend(chatMessageTopic.getTopic(), message);
     }
 
@@ -132,7 +137,7 @@ public class ChatMessageServiceImpl implements ChatMessageService {
                 .conversationId(message.getConversation().getId())
                 .sender(message.getSender())
                 .content(message.getContent())
-                .sentAt(message.getSentAt())
+                .sentAt(message.getSentAt().toEpochMilli())
                 .readStatus(message.getReadStatus())
                 .build();
     }
